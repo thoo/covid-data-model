@@ -1,8 +1,8 @@
 import boto3
+import datetime
 import os
 
 from libs.build_dod_dataset import get_usa_by_county_df, get_usa_by_states_df, get_usa_county_shapefile, get_usa_state_shapefile
-
 
 class DatasetDeployer():
 
@@ -45,13 +45,13 @@ class DatasetDeployer():
         return
 
 
-def deploy():
+def deploy(now: datetime.datetime):
     """The entry function for invokation
 
     """
     states_blob = {
         'key': 'states.csv',
-        'body': get_usa_by_states_df().to_csv()
+        'body': get_usa_by_states_df(now).to_csv()
         }
     statesObj = DatasetDeployer(**states_blob)
     statesObj.persist()
@@ -64,7 +64,7 @@ def deploy():
     countiesObj.persist()
 
     get_usa_county_shapefile('shapefiles/counties')
-    get_usa_state_shapefile('shapefiles/states')
+    get_usa_state_shapefile('shapefiles/states', now)
 
     print('finished dod job')
 
@@ -78,4 +78,5 @@ if __name__ == "__main__":
     # triggering persistance to local
     python deploy_dod_dataset.py
     """
-    deploy()
+    now = datetime.datetime.now()
+    deploy(now)
