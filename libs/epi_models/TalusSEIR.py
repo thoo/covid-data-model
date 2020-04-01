@@ -166,11 +166,11 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     A = y0[6]
 
     I_all = [I1, I2, I3]
-    all_infected = sum(I_all) + A
     I_transmission = np.dot(beta[1:4], I_all)
     I_recovery = np.dot(gamma[1:4], I_all)
     A_transmission = (A * beta.A)
     A_recovery = (A * gamma.A)
+    all_infected = sum(I_all) + A
 
     dE = np.min([(A_transmission + I_transmission) * S, S]) - (alpha * E)  # Exposed
     dA = ((1 - f) * alpha * E) - (gamma.A * A) # asymp
@@ -302,7 +302,9 @@ def generate_epi_params(model_parameters):
         model_parameters["beta"] / N,
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
+        # TODO move beta.A to model params
         A = model_parameters["beta"] / N,
+        # A = 0,
     )
 
     # have to calculate these in order and then put them into arrays
@@ -329,7 +331,7 @@ def generate_epi_params(model_parameters):
         "alpha": alpha,
         # TODO move gamma_a to model params
         "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = gamma_1),
-        # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = 0),
+        # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
         "f": .5 # TODO move to model params
