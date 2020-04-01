@@ -87,33 +87,11 @@ def record_results(
         }
     )
 
-    lowercaseStates = [
-        'AK',
-        'CA',
-        'CO',
-        'FL',
-        'MO',
-        'NM',
-        'NV',
-        'NY',
-        'OR',
-        'TX',
-        'WA',
-    ]
-
-    if name in lowercaseStates:
-        # @TODO: Remove once the frontend no longer expects some states to be lowercase.
-        with open(
-            os.path.join(directory, name.lower() + "." + str(num) + ".json").format(name),
-            "w",
-        ) as out:
-            simplejson.dump(website_ordering.values.tolist(), out, ignore_nan=True)
-    else:
-        with open(
-            os.path.join(directory, name.upper() + "." + str(num) + ".json").format(name),
-            "w",
-        ) as out:
-            simplejson.dump(website_ordering.values.tolist(), out, ignore_nan=True)
+    with open(
+        os.path.join(directory, name.upper() + "." + str(num) + ".json").format(name),
+        "w",
+    ) as out:
+        simplejson.dump(website_ordering.values.tolist(), out, ignore_nan=True)
 
 
 def model_state(dataset, country, state, starting_beds, interventions=None):
