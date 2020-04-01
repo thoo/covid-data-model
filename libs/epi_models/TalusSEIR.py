@@ -169,8 +169,8 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I_sum = sum(I_all)
 
     dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
-    dA = ((1-f) * alpha * E) - (gamma.a * A) # asymp
-    dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
+    dA = ((1 - f) * alpha * E) - (gamma.a * A) # asymp
+    dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
     dR = np.min([((A * gamma.a) + np.dot(gamma[1:4], I_all)), I_sum])  # Recovered
