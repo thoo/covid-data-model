@@ -44,11 +44,11 @@ def dataframe_ify(data, start, end, steps):
 
     # TODO add asymp compartment
     sir_df = pd.DataFrame(
-        zip(data[0], data[1], data[2], data[3], data[4], data[5]),
-        # zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
+        # zip(data[0], data[1], data[2], data[3], data[4], data[5]),
+        zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
         columns=[
             "exposed",
-            # "asymp",
+            "asymp",
             "infected_a",
             "infected_b",
             "infected_c",
@@ -118,11 +118,13 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I3 = y0[3]
     R = y0[4]
     D = y0[5]
+    A = y0[6]
 
     I_all = [I1, I2, I3]
     I_sum = sum(I_all)
 
     dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
+    dA = 0 # TODO asymp
     dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
@@ -135,7 +137,8 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
         dI2,
         dI3,
         dR,
-        dD
+        dD,
+        dA
     ]
 
     return dy
@@ -204,7 +207,7 @@ def seir(
     # define initial conditions vector
     y0 = [
         int(exposed), # E
-        # int(asymp), # A
+        int(asymp), # A
         int(mild), # I1
         int(hospitalized), # I2
         int(icu), # I3
