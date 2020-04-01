@@ -166,14 +166,18 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     A = y0[6]
 
     I_all = [I1, I2, I3]
-    I_sum = sum(I_all)
+    all_infected = sum(I_all) + A
+    I_transmission = np.dot(beta[1:4], I_all)
+    I_recovery = np.dot(gamma[1:4], I_all)
+    A_transmission = (A * beta.A)
+    A_recovery = (A * gamma.A)
 
-    dE = np.min([(((A * beta.A) + np.dot(beta[1:4], I_all)) * S), S]) - (alpha * E)  # Exposed
+    dE = np.min([(A_transmission + I_transmission) * S, S]) - (alpha * E)  # Exposed
     dA = ((1 - f) * alpha * E) - (gamma.A * A) # asymp
     dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
-    dR = np.min([((A * gamma.A) + np.dot(gamma[1:4], I_all)), A + I_sum])  # Recovered
+    dR = np.min([A_recovery + I_recovery, all_infected])  # Recovered
     dD = mu * I3  # Deaths
 
     dy = [
