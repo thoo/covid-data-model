@@ -44,10 +44,11 @@ def dataframe_ify(data, start, end, steps):
 
     # TODO add asymp compartment
     sir_df = pd.DataFrame(
-        zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
+        zip(data[0], data[1], data[2], data[3], data[4], data[5]),
+        # zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
         columns=[
             "exposed",
-            "asymp",
+            # "asymp",
             "infected_a",
             "infected_b",
             "infected_c",
@@ -66,6 +67,21 @@ def dataframe_ify(data, start, end, steps):
     return sir_df
 
 
+def deriv_old(y0, t, beta, alpha, gamma, rho, mu, f, N):
+    dy = [0, 0, 0, 0, 0, 0]
+    # S = N - sum(y0)
+    S = np.max([N - sum(y0), 0])
+
+    dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
+    dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
+    dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
+    dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
+    dy[4] = np.min([np.dot(gamma[1:4], y0[1:4]), sum(y0[1:4])])  # Recovered
+    dy[5] = mu * y0[3]  # Deaths
+
+    return dy
+
+
 # The SEIR model differential equations.
 # TODO update to include asymp compartment
 # https://github.com/alsnhll/SEIR_COVID19/blob/master/SEIR_COVID19.ipynb
@@ -78,7 +94,7 @@ def dataframe_ify(data, start, end, steps):
 # Don't track S because all variables must add up to 1
 # include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
 # In the future could include recovery or infection from the exposed class (asymptomatics)
-def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
+def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     """Calculate and return the current values of dE/dt, etc. for each model
     compartment as numerical integration is performed. This function is the
     first argument of the odeint numerical integrator function.
@@ -108,16 +124,41 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
         Description of returned object.
 
     """
-    dy = [0, 0, 0, 0, 0, 0, 0]
+    # S = N - sum(y0)
     S = np.max([N - sum(y0), 0])
 
-    dy[0] = np.min([(np.dot(beta[1:3], y0[1:3]) * S), S]) - (alpha.i * y0[0])  # Exposed
-    dy[1] = 0 # asymp - TODO
-    dy[2] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
-    dy[3] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
-    dy[4] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
-    dy[5] = np.min([np.dot(gamma[1:3], y0[1:3]), sum(y0[1:3])])  # Recovered
-    dy[6] = mu * y0[3]  # Deaths
+    E = y0[0]
+    I1 = y0[1]
+    I2 = y0[2]
+    I3 = y0[3]
+    R = y0[4]
+    D = y0[5]
+
+    I_all = [I1, I2, I3]
+    I_sum = sum(I_all)
+
+    dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
+    dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
+    dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
+    dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
+    dR = np.min([np.dot(gamma[1:4], I_all), I_sum])  # Recovered
+    dD = mu * I3  # Deaths
+
+    # dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
+    # dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
+    # dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
+    # dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
+    # dy[4] = np.min([np.dot(gamma[1:4], y0[1:4]), sum(y0[1:4])])  # Recovered
+    # dy[5] = mu * y0[3]  # Deaths
+
+    dy = [
+        dE,
+        dI1,
+        dI2,
+        dI3,
+        dR,
+        dD
+    ]
 
     return dy
 
@@ -129,7 +170,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
 # gamma = mean recovery rate
 # TODO: add other params from doc
 def seir(
-    pop_dict, model_parameters, beta, alpha, gamma, rho, mu,
+    pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f,
 ):
 
     # number of individuals in simulation is equal to total population param
@@ -185,7 +226,7 @@ def seir(
     # define initial conditions vector
     y0 = [
         int(exposed), # E
-        int(asymp), # A
+        # int(asymp), # A
         int(mild), # I1
         int(hospitalized), # I2
         int(icu), # I3
@@ -198,7 +239,7 @@ def seir(
 
     t = np.arange(0, steps, 1)
 
-    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, N))
+    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
 
     return np.transpose(ret), steps, ret
 
@@ -229,10 +270,7 @@ def generate_epi_params(model_parameters):
 
     fraction_severe = model_parameters["hospitalization_rate"] - fraction_critical
 
-    alpha = L(
-        i = 1 / model_parameters["presymptomatic_period"],
-        a = 0,
-    )
+    alpha = 1 / model_parameters["presymptomatic_period"]
 
     # assume hospitalized don't infect
     beta = L(
@@ -264,12 +302,16 @@ def generate_epi_params(model_parameters):
     )
     gamma_3 = (1 / model_parameters["icu_time_death"]) - mu
 
+    # f. fraction of infected individuals who show symptoms
+    f = model_parameters["frac_infected_symptomatic"]
+
     seir_params = {
         "beta": beta,
         "alpha": alpha,
         "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = gamma_a),
         "rho": L(rho_0, rho_1, rho_2, a = 0),
         "mu": mu,
+        "f": f,
     }
 
     return seir_params
@@ -347,3 +389,51 @@ class L(list):
     def __call__(self, **kwargs):
         self.__dict__.update(kwargs)
         return self
+
+
+def brute_force_r0(seir_params, new_r0, r0, N):
+    """This function will be obsolete when the procedure for introducing
+    interventions into model runs is updated -- do not maintain it.
+
+    Parameters
+    ----------
+    seir_params : type
+        Description of parameter `seir_params`.
+    new_r0 : type
+        Description of parameter `new_r0`.
+    r0 : type
+        Description of parameter `r0`.
+    N : type
+        Description of parameter `N`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
+    calc_r0 = r0
+
+    change = np.sign(new_r0 - calc_r0) * 0.00005
+    # step = 0.1
+    # direction = 1 if change > 0 else -1
+
+    new_seir_params = seir_params.copy()
+
+    while round(new_r0, 4) != round(calc_r0, 4):
+        new_seir_params["beta"] = [
+            0.0,
+            new_seir_params["beta"][1] + change,
+            new_seir_params["beta"][2],
+            new_seir_params["beta"][3],
+        ]
+        calc_r0 = generate_r0(new_seir_params, N)
+
+        diff_r0 = new_r0 - calc_r0
+
+        # if the sign has changed, we overshot, turn around with a smaller
+        # step
+        if np.sign(diff_r0) != np.sign(change):
+            change = -change / 2
+
+    return new_seir_params
