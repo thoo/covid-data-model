@@ -80,7 +80,7 @@ def dataframe_ify(data, start, end, steps):
 # Don't track S because all variables must add up to 1
 # include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
 # In the future could include recovery or infection from the exposed class (asymptomatics)
-def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
+def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     """Calculate and return the current values of dE/dt, etc. for each model
     compartment as numerical integration is performed. This function is the
     first argument of the odeint numerical integrator function.
@@ -151,7 +151,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
 # gamma = mean recovery rate
 # TODO: add other params from doc
 def seir(
-    pop_dict, model_parameters, beta, alpha, gamma, rho, mu,
+    pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f
 ):
 
     N = pop_dict["total"]
@@ -185,7 +185,7 @@ def seir(
     steps = 365
     t = np.arange(0, steps, 1)
 
-    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, N))
+    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
 
     return np.transpose(ret), steps, ret
 
@@ -254,9 +254,10 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        "gamma": [gamma_0, gamma_1, gamma_2, gamma_3],
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
+        "f": 1
     }
 
     return seir_params
