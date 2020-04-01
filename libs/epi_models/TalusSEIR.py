@@ -168,12 +168,12 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I_all = [I1, I2, I3]
     I_sum = sum(I_all)
 
-    dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
-    dA = ((1 - f) * alpha * E) - (gamma.a * A) # asymp
+    dE = np.min([(((A * beta.A) + np.dot(beta[1:4], I_all)) * S), S]) - (alpha * E)  # Exposed
+    dA = ((1 - f) * alpha * E) - (gamma.A * A) # asymp
     dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
-    dR = np.min([((A * gamma.a) + np.dot(gamma[1:4], I_all)), I_sum])  # Recovered
+    dR = np.min([((A * gamma.A) + np.dot(gamma[1:4], I_all)), A + I_sum])  # Recovered
     dD = mu * I3  # Deaths
 
     dy = [
@@ -293,12 +293,13 @@ def generate_epi_params(model_parameters):
     alpha = 1 / model_parameters["presymptomatic_period"]
 
     # assume hospitalized don't infect
-    beta = [
+    beta = L(
         0,
         model_parameters["beta"] / N,
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
-    ]
+        A = model_parameters["beta"] / N,
+    )
 
     # have to calculate these in order and then put them into arrays
     gamma_0 = 0
@@ -322,7 +323,8 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = gamma_1),
+        # TODO move gamma_a to model params
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = gamma_1),
         # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
