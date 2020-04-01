@@ -69,7 +69,7 @@ def dataframe_ify(data, start, end, steps):
 # TODO update to include asymp compartment
 # https://github.com/alsnhll/SEIR_COVID19/blob/master/SEIR_COVID19.ipynb
 # but these are the basics
-# y = initial conditions
+# y0 = initial conditions
 # t = a grid of time points (in days) - not currently used, but will be for time-dependent functions
 # N = total pop
 # beta = contact rate
@@ -78,7 +78,9 @@ def dataframe_ify(data, start, end, steps):
 # include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
 # In the future could include recovery or infection from the exposed class (asymptomatics)
 def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
-    """Short summary.
+    """Calculate and return the current values of dE/dt, etc. for each model
+    compartment as numerical integration is performed. This function is the
+    first argument of the odeint numerical integrator function.
 
     Parameters
     ----------
