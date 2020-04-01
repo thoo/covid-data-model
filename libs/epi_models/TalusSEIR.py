@@ -1,15 +1,38 @@
+"""Implementation of an SEIR compartment model with R = Recovered + Deceased,
+I = I1 + I2 + I3 (increasing severity of infection), with an asymptomatic
+infectious compartment (A).
+"""
+
+# standard modules
 import datetime
 
+# 3rd party modules
 import numpy as np
 import pandas as pd
-
-# odeint might work, moving it out didn't solve the problem
-# but for now let's keep doing the integration manually, it's
-# clearer what's going on and performance didn't seem to take a hit
 from scipy.integrate import odeint
 
 
 def brute_force_r0(seir_params, new_r0, r0, N):
+    """This function will be obsolete when the procedure for introducing
+    interventions into model runs is updated -- do not maintain it.
+
+    Parameters
+    ----------
+    seir_params : type
+        Description of parameter `seir_params`.
+    new_r0 : type
+        Description of parameter `new_r0`.
+    r0 : type
+        Description of parameter `r0`.
+    N : type
+        Description of parameter `N`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     calc_r0 = r0
 
     change = np.sign(new_r0 - calc_r0) * 0.00005
@@ -38,6 +61,25 @@ def brute_force_r0(seir_params, new_r0, r0, N):
 
 
 def dataframe_ify(data, start, end, steps):
+    """Return human-friendly dataframe of model results.
+
+    Parameters
+    ----------
+    data : type
+        Description of parameter `data`.
+    start : type
+        Description of parameter `start`.
+    end : type
+        Description of parameter `end`.
+    steps : type
+        Description of parameter `steps`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     last_period = start + datetime.timedelta(days=(steps - 1))
 
     timesteps = pd.date_range(
@@ -48,7 +90,8 @@ def dataframe_ify(data, start, end, steps):
     ).to_list()
 
     sir_df = pd.DataFrame(
-        zip(data[0], data[1], data[2], data[3], data[4], data[5]),
+        zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
+        # zip(data[0], data[1], data[2], data[3], data[4], data[5]),
         columns=[
             "exposed",
             "infected_a",
@@ -56,6 +99,7 @@ def dataframe_ify(data, start, end, steps):
             "infected_c",
             "recovered",
             "dead",
+            "asymp"
         ],
         index=timesteps,
     )
@@ -125,12 +169,12 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I_sum = sum(I_all)
 
     dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
+    dA = ((1-f) * alpha * E) - (gamma.a * A) # asymp
     dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
-    dR = np.min([np.dot(gamma[1:4], I_all), I_sum])  # Recovered
+    dR = np.min([((A * gamma.a) + np.dot(gamma[1:4], I_all)), I_sum])  # Recovered
     dD = mu * I3  # Deaths
-    dA = 0 # TODO asymp
 
     dy = [
         dE,
@@ -153,7 +197,31 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
 def seir(
     pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f
 ):
+    """Short summary.
 
+    Parameters
+    ----------
+    pop_dict : type
+        Description of parameter `pop_dict`.
+    model_parameters : type
+        Description of parameter `model_parameters`.
+    beta : type
+        Description of parameter `beta`.
+    alpha : type
+        Description of parameter `alpha`.
+    gamma : type
+        Description of parameter `gamma`.
+    rho : type
+        Description of parameter `rho`.
+    mu : type
+        Description of parameter `mu`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     N = pop_dict["total"]
     # assume that the first time you see an infected population it is mildly so
     # after that, we'll have them broken out
@@ -190,26 +258,26 @@ def seir(
     return np.transpose(ret), steps, ret
 
 
-# for testing purposes, just load the Harvard output
-def harvard_model_params(N):
-    return {
-        "beta": [0.0, 0.5 / N, 0.1 / N, 0.1 / N],
-        "alpha": 0.2,
-        "gamma": [0.0, 0.133, 0.125, 0.075],
-        "rho": [0.0, 0.033, 0.042],
-        "mu": 0.05,
-    }
-
-
-# for testing purposes, just load the Harvard output
-def r0_24_params(N):
-    return {
-        "beta": [0.0, 0.3719985820912413 / N, 0.1 / N, 0.1 / N],
-        "alpha": 0.2,
-        "gamma": [0.0, 0.133, 0.125, 0.075],
-        "rho": [0.0, 0.033, 0.042],
-        "mu": 0.05,
-    }
+# # for testing purposes, just load the Harvard output
+# def harvard_model_params(N):
+#     return {
+#         "beta": [0.0, 0.5 / N, 0.1 / N, 0.1 / N],
+#         "alpha": 0.2,
+#         "gamma": [0.0, 0.133, 0.125, 0.075],
+#         "rho": [0.0, 0.033, 0.042],
+#         "mu": 0.05,
+#     }
+#
+#
+# # for testing purposes, just load the Harvard output
+# def r0_24_params(N):
+#     return {
+#         "beta": [0.0, 0.3719985820912413 / N, 0.1 / N, 0.1 / N],
+#         "alpha": 0.2,
+#         "gamma": [0.0, 0.133, 0.125, 0.075],
+#         "rho": [0.0, 0.033, 0.042],
+#         "mu": 0.05,
+#     }
 
 
 # for now just implement Harvard model, in the future use this to change
@@ -254,16 +322,34 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = 0),
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = gamma_1),
+        # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
-        "f": 1
+        "f": .5 # TODO move to model params
+        # "f": 1 # TODO move to model params
     }
 
     return seir_params
 
-
+# TODO update to match latest model:
+# R0 = N*((1-f)*BA/gA + f*((B1/(p1+g1))+(p1/(p1+g1))*(B2/(p2+g2)+ (p2/(p2+g2))*(B3/(m+g3)))))
 def generate_r0(seir_params, N):
+    """Short summary.
+
+    Parameters
+    ----------
+    seir_params : type
+        Description of parameter `seir_params`.
+    N : type
+        Description of parameter `N`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     b = seir_params["beta"]
     p = seir_params["rho"]
     g = seir_params["gamma"]
