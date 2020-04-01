@@ -44,9 +44,10 @@ def dataframe_ify(data, start, end, steps):
 
     # TODO add asymp compartment
     sir_df = pd.DataFrame(
-        zip(data[0], data[1], data[2], data[3], data[4], data[5]),
+        zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
         columns=[
             "exposed",
+            "asymp",
             "infected_a",
             "infected_b",
             "infected_c",
@@ -107,15 +108,16 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
         Description of returned object.
 
     """
-    dy = [0, 0, 0, 0, 0, 0]
+    dy = [0, 0, 0, 0, 0, 0, 0]
     S = np.max([N - sum(y0), 0])
 
     dy[0] = np.min([(np.dot(beta[1:3], y0[1:3]) * S), S]) - (alpha.i * y0[0])  # Exposed
-    dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
-    dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
-    dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
-    dy[4] = np.min([np.dot(gamma[1:3], y0[1:3]), sum(y0[1:3])])  # Recovered
-    dy[5] = mu * y0[3]  # Deaths
+    dy[1] = 0 # asymp - TODO
+    dy[2] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
+    dy[3] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
+    dy[4] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
+    dy[5] = np.min([np.dot(gamma[1:3], y0[1:3]), sum(y0[1:3])])  # Recovered
+    dy[6] = mu * y0[3]  # Deaths
 
     return dy
 
@@ -170,6 +172,10 @@ def seir(
         mild = hospitalized / model_parameters["hospitalization_rate"]
         icu = hospitalized * model_parameters["hospitalized_cases_requiring_icu_care"]
 
+    # initial asymp is zero
+    # TODO rationalize
+    asymp = 0
+
     exposed = model_parameters["exposed_infected_ratio"] * mild
 
     susceptible = pop_dict["total"] - (
@@ -179,6 +185,7 @@ def seir(
     # define initial conditions vector
     y0 = [
         int(exposed), # E
+        int(asymp), # A
         int(mild), # I1
         int(hospitalized), # I2
         int(icu), # I3
