@@ -8,11 +8,12 @@ import numpy as np
 import pandas as pd
 
 from .epi_models.HarvardEpi import (
+# from .epi_models.TalusSEIR import (
     seir,
     dataframe_ify,
     generate_epi_params,
-    harvard_model_params,
-    r0_24_params,
+    # harvard_model_params,
+    # r0_24_params,
     generate_r0,
     brute_force_r0,
 )
@@ -125,11 +126,7 @@ class CovidTimeseriesModelSIR:
                 (data, steps, ret) = seir(
                     pop_dict,
                     model_parameters,
-                    new_seir_params["beta"],
-                    new_seir_params["alpha"],
-                    new_seir_params["gamma"],
-                    new_seir_params["rho"],
-                    new_seir_params["mu"],
+                    **new_seir_params
                 )
 
                 new_df = dataframe_ify(data, date, end_date, steps,)
@@ -224,11 +221,7 @@ class CovidTimeseriesModelSIR:
         (data, steps, ret) = seir(
             pop_dict,
             model_parameters,
-            init_params["beta"],
-            init_params["alpha"],
-            init_params["gamma"],
-            init_params["rho"],
-            init_params["mu"],
+            **init_params
         )
 
         # this dataframe should start on the last day of the actual data
