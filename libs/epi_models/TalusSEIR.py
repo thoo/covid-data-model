@@ -72,7 +72,7 @@ def dataframe_ify(data, start, end, steps):
 # y0 = initial conditions
 # t = a grid of time points (in days) - not currently used, but will be for time-dependent functions
 # N = total pop
-# beta = contact rate
+# beta = transmission rate
 # gamma = mean recovery rate
 # Don't track S because all variables must add up to 1
 # include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
@@ -110,7 +110,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
     dy = [0, 0, 0, 0, 0, 0]
     S = np.max([N - sum(y0), 0])
 
-    dy[0] = np.min([(np.dot(beta[1:3], y0[1:3]) * S), S]) - (alpha * y0[0])  # Exposed
+    dy[0] = np.min([(np.dot(beta[1:3], y0[1:3]) * S), S]) - (alpha.i * y0[0])  # Exposed
     dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
     dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
     dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
@@ -123,7 +123,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
 # Sets up and runs the integration
 # start date and end date give the bounds of the simulation
 # pop_dict contains the initial populations
-# beta = contact rate
+# beta = transmission rate
 # gamma = mean recovery rate
 # TODO: add other params from doc
 def seir(
@@ -222,22 +222,28 @@ def generate_epi_params(model_parameters):
 
     fraction_severe = model_parameters["hospitalization_rate"] - fraction_critical
 
-    alpha = 1 / model_parameters["presymptomatic_period"]
+    alpha = L(
+        i = 1 / model_parameters["presymptomatic_period"],
+        a = 0,
+    )
 
     # assume hospitalized don't infect
-    beta = [
+    beta = L(
         0,
         model_parameters["beta"] / N,
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
-    ]
+        a = 0
+    )
 
     # have to calculate these in order and then put them into arrays
+    gamma_a = 0
     gamma_0 = 0
     gamma_1 = (1 / model_parameters["duration_mild_infections"]) * (
         1 - model_parameters["hospitalization_rate"]
     )
 
+    rho_a = 0
     rho_0 = 0
     rho_1 = (1 / model_parameters["duration_mild_infections"]) - gamma_1
     rho_2 = (1 / model_parameters["hospital_time_recovery"]) * (
@@ -254,8 +260,8 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        "gamma": [gamma_0, gamma_1, gamma_2, gamma_3],
-        "rho": [rho_0, rho_1, rho_2],
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = gamma_a),
+        "rho": L(rho_0, rho_1, rho_2, a = 0),
         "mu": mu,
     }
 
