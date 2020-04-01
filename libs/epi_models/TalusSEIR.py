@@ -48,12 +48,12 @@ def dataframe_ify(data, start, end, steps):
         zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
         columns=[
             "exposed",
-            "asymp",
             "infected_a",
             "infected_b",
             "infected_c",
             "recovered",
             "dead",
+            "asymp",
         ],
         index=timesteps,
     )
@@ -124,12 +124,12 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I_sum = sum(I_all)
 
     dE = np.min([(np.dot(beta[1:4], I_all) * S), S]) - (alpha * E)  # Exposed
-    dA = 0 # TODO asymp
     dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
     dR = np.min([np.dot(gamma[1:4], I_all), I_sum])  # Recovered
     dD = mu * I3  # Deaths
+    dA = 0 # TODO asymp
 
     dy = [
         dE,
@@ -140,7 +140,6 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
         dD,
         dA
     ]
-
     return dy
 
 
@@ -207,12 +206,12 @@ def seir(
     # define initial conditions vector
     y0 = [
         int(exposed), # E
-        int(asymp), # A
         int(mild), # I1
         int(hospitalized), # I2
         int(icu), # I3
         int(pop_dict.get("recovered", 0)), # R
         int(pop_dict.get("deaths", 0)), # D
+        int(asymp), # A
     ]
 
     # model step count is equal to number of days to simulate
