@@ -67,6 +67,21 @@ def dataframe_ify(data, start, end, steps):
     return sir_df
 
 
+def deriv_old(y0, t, beta, alpha, gamma, rho, mu, f, N):
+    dy = [0, 0, 0, 0, 0, 0]
+    # S = N - sum(y0)
+    S = np.max([N - sum(y0), 0])
+
+    dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
+    dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
+    dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
+    dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
+    dy[4] = np.min([np.dot(gamma[1:4], y0[1:4]), sum(y0[1:4])])  # Recovered
+    dy[5] = mu * y0[3]  # Deaths
+
+    return dy
+
+
 # The SEIR model differential equations.
 # TODO update to include asymp compartment
 # https://github.com/alsnhll/SEIR_COVID19/blob/master/SEIR_COVID19.ipynb
@@ -130,6 +145,13 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     dR = np.min([np.dot(gamma[1:4], I_all), I_sum])  # Recovered
     dD = mu * I3  # Deaths
     dA = 0 # TODO asymp
+
+    # dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
+    # dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
+    # dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
+    # dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
+    # dy[4] = np.min([np.dot(gamma[1:4], y0[1:4]), sum(y0[1:4])])  # Recovered
+    # dy[5] = mu * y0[3]  # Deaths
 
     dy = [
         dE,
