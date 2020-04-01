@@ -44,8 +44,8 @@ def dataframe_ify(data, start, end, steps):
 
     # TODO add asymp compartment
     sir_df = pd.DataFrame(
-        # zip(data[0], data[1], data[2], data[3], data[4], data[5]),
-        zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
+        zip(data[0], data[1], data[2], data[3], data[4], data[5]),
+        # zip(data[0], data[1], data[2], data[3], data[4], data[5], data[6]),
         columns=[
             "exposed",
             "infected_a",
@@ -53,7 +53,7 @@ def dataframe_ify(data, start, end, steps):
             "infected_c",
             "recovered",
             "dead",
-            "asymp",
+            # "asymp",
         ],
         index=timesteps,
     )
@@ -67,7 +67,7 @@ def dataframe_ify(data, start, end, steps):
     return sir_df
 
 
-def deriv_old(y0, t, beta, alpha, gamma, rho, mu, f, N):
+def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
     dy = [0, 0, 0, 0, 0, 0]
     # S = N - sum(y0)
     S = np.max([N - sum(y0), 0])
@@ -94,7 +94,7 @@ def deriv_old(y0, t, beta, alpha, gamma, rho, mu, f, N):
 # Don't track S because all variables must add up to 1
 # include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
 # In the future could include recovery or infection from the exposed class (asymptomatics)
-def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
+def deriv_new(y0, t, beta, alpha, gamma, rho, mu, N):
     """Calculate and return the current values of dE/dt, etc. for each model
     compartment as numerical integration is performed. This function is the
     first argument of the odeint numerical integrator function.
@@ -172,7 +172,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
 # gamma = mean recovery rate
 # TODO: add other params from doc
 def seir(
-    pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f,
+    pop_dict, model_parameters, beta, alpha, gamma, rho, mu,
 ):
 
     # number of individuals in simulation is equal to total population param
@@ -233,7 +233,7 @@ def seir(
         int(icu), # I3
         int(pop_dict.get("recovered", 0)), # R
         int(pop_dict.get("deaths", 0)), # D
-        int(asymp), # A
+        # int(asymp), # A
     ]
 
     # model step count is equal to number of days to simulate
@@ -241,15 +241,63 @@ def seir(
 
     t = np.arange(0, steps, 1)
 
-    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
+    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, N))
 
     return np.transpose(ret), steps, ret
+
+
+def generate_epi_params(model_parameters):
+    N = model_parameters["population"]
+
+    fraction_critical = (
+        model_parameters["hospitalization_rate"]
+        * model_parameters["hospitalized_cases_requiring_icu_care"]
+    )
+
+    alpha = 1 / model_parameters["presymptomatic_period"]
+
+    # assume hospitalized don't infect
+    beta = [
+        0,
+        model_parameters["beta"] / N,
+        model_parameters["beta_hospitalized"] / N,
+        model_parameters["beta_icu"] / N,
+    ]
+
+    # have to calculate these in order and then put them into arrays
+    gamma_0 = 0
+    gamma_1 = (1 / model_parameters["duration_mild_infections"]) * (
+        1 - model_parameters["hospitalization_rate"]
+    )
+
+    rho_0 = 0
+    rho_1 = (1 / model_parameters["duration_mild_infections"]) - gamma_1
+    rho_2 = (1 / model_parameters["hospital_time_recovery"]) * (
+        fraction_critical / model_parameters["hospitalization_rate"]
+    )
+
+    gamma_2 = (1 / model_parameters["hospital_time_recovery"]) - rho_2
+
+    mu = (1 / model_parameters["icu_time_death"]) * (
+        model_parameters["case_fatality_rate"] / fraction_critical
+    )
+    gamma_3 = (1 / model_parameters["icu_time_death"]) - mu
+
+    seir_params = {
+        "beta": beta,
+        "alpha": alpha,
+        "gamma": [gamma_0, gamma_1, gamma_2, gamma_3],
+        "rho": [rho_0, rho_1, rho_2],
+        "mu": mu,
+    }
+
+    return seir_params
 
 
 # Core parameters currently based on the Harvard model.
 # for now just implement Harvard model, in the future use this to change
 # key params due to interventions
-def generate_epi_params(model_parameters):
+def generate_epi_params_new(model_parameters):
     """Short summary.
 
     Parameters
@@ -313,7 +361,6 @@ def generate_epi_params(model_parameters):
         "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, a = gamma_a),
         "rho": L(rho_0, rho_1, rho_2, a = 0),
         "mu": mu,
-        "f": f,
     }
 
     return seir_params
