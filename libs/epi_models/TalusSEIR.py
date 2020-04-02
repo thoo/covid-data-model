@@ -340,7 +340,7 @@ def generate_epi_params(model_parameters):
         "mu": mu,
         "f": convert_ratio_to_frac(
             model_parameters["asymp_to_mild_ratio"],
-            numerator='second'
+            numerator='second_term'
         )
     }
 
@@ -410,27 +410,27 @@ def generate_r0(seir_params, N):
     return r0
 
 
-def convert_ratio_to_frac(x, numerator='second'):
+def convert_ratio_to_frac(x, numerator='second_term'):
     """Given a ratio x where x = a / b, returns the corresponding fraction
-    assuming that b is the numerator.
+    assuming that b is the numerator by default.
 
     Parameters
     ----------
     x : float
         ratio where x = a /b.
     numerator : string
-        if 'second': returns fraction assuming b is numerator.
-        if 'first': returns fraction assuming a is numerator.
+        if 'second_term': returns fraction assuming b is numerator.
+        if 'first_term': returns fraction assuming a is numerator.
 
     Returns
     -------
     float
         fraction assuming b is the numerator by default, i.e., b / (a + b).
-        if 'first' was specified as `numerator` then returns fraction assuming
-            a is the numerator, i.e., a / (a + b)
+        if 'first_term' was specified as `numerator` then returns fraction
+            assuming a is the numerator, i.e., a / (a + b)
 
     """
-    if numerator == 'second':
+    if numerator == 'second_term':
         return 1 / (x + 1)
     else:
         return x / (x + 1)
