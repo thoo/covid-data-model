@@ -65,12 +65,14 @@ def dataframe_ify(data, start, end, steps):
 
     Parameters
     ----------
-    data : type
+    data : list of lists
         Description of parameter `data`.
-    start : type
-        Description of parameter `start`.
-    end : type
-        Description of parameter `end`.
+    start : datetime.date
+        Date of the start of the simulation.
+    end : datetime.date
+        NOT CURRENTLY USED. The end date is automatically calculated by adding
+        a number of days equal to the number of simulation timesteps minus 1
+        to the start argument.
     steps : type
         Description of parameter `steps`.
 
@@ -81,9 +83,9 @@ def dataframe_ify(data, start, end, steps):
 
     """
     last_period = start + datetime.timedelta(days=(steps - 1))
+    test = datetime.date(2020, 9, 1)
 
     timesteps = pd.date_range(
-        # start=start, end=last_period, periods=steps, freq=='D',
         start=start,
         end=last_period,
         freq="D",
@@ -131,26 +133,29 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
 
     Parameters
     ----------
-    y0 : type
-        Description of parameter `y0`.
-    t : type
-        Description of parameter `t`.
-    beta : type
-        Description of parameter `beta`.
-    alpha : type
-        Description of parameter `alpha`.
-    gamma : type
-        Description of parameter `gamma`.
-    rho : type
-        Description of parameter `rho`.
-    mu : type
-        Description of parameter `mu`.
-    N : type
-        Description of parameter `N`.
+    y0 : list
+        The values of the equations being integrated at X(t) where X is the
+        equation being integrated at timestep t.
+    t : float
+        The current value of time.
+    beta : list of floats
+        Transmission rates (per day) for various classes of infectious people.
+    alpha : float
+        Rate (per day) at which exposed (E) individuals become infectious (I_1).
+    gamma : list of floats
+        Rates (per day) at which various classes of infectious people recover.
+    rho : list of floats
+        Rates (per day) at which various classes of infectious people develop
+        the next severity level of symptoms
+    mu : float
+        Rate (per day) at which infectious people with critical symptoms (I_3)
+        pass away.
+    N : int
+        The total number of individuals in the simulation.
 
     Returns
     -------
-    type
+    list of floats
         Description of returned object.
 
     """
@@ -247,8 +252,11 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
     steps = 365
     t = np.arange(0, steps, 1)
 
-    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
+    print('\nt')
+    print(t)
 
+    # get values of differential equation variables at each timestemp
+    ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
     return np.transpose(ret), steps, ret
 
 
