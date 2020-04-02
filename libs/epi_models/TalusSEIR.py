@@ -99,7 +99,7 @@ def dataframe_ify(data, start, end, steps):
             "infected_c",
             "recovered",
             "dead",
-            "asymp"
+            "asymp",
         ],
         index=timesteps,
     )
@@ -168,27 +168,19 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     I_all = [I1, I2, I3]
     I_transmission = np.dot(beta[1:4], I_all)
     I_recovery = np.dot(gamma[1:4], I_all)
-    A_transmission = (A * beta.A)
-    A_recovery = (A * gamma.A)
+    A_transmission = A * beta.A
+    A_recovery = A * gamma.A
     all_infected = sum(I_all) + A
 
     dE = np.min([(A_transmission + I_transmission) * S, S]) - (alpha * E)  # Exposed
-    dA = ((1 - f) * alpha * E) - (gamma.A * A) # asymp
+    dA = ((1 - f) * alpha * E) - (gamma.A * A)  # asymp
     dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
     dR = np.min([A_recovery + I_recovery, all_infected])  # Recovered
     dD = mu * I3  # Deaths
 
-    dy = [
-        dE,
-        dI1,
-        dI2,
-        dI3,
-        dR,
-        dD,
-        dA
-    ]
+    dy = [dE, dI1, dI2, dI3, dR, dD, dA]
     return dy
 
 
@@ -198,9 +190,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
 # beta = contact rate
 # gamma = mean recovery rate
 # TODO: add other params from doc
-def seir(
-    pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f
-):
+def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
     """Short summary.
 
     Parameters
@@ -233,10 +223,12 @@ def seir(
         mild = pop_dict["infected_a"]
         hospitalized = pop_dict["infected_b"]
         icu = pop_dict["infected_c"]
+        asymp = pop_dict["asymp"]
     else:
         hospitalized = pop_dict["infected"] / 4
         mild = hospitalized / model_parameters["hospitalization_rate"]
         icu = hospitalized * model_parameters["hospitalized_cases_requiring_icu_care"]
+        asymp = mild * model_parameters["asymp_to_mild_ratio"]
 
     susceptible = pop_dict["total"] - (
         pop_dict["infected"] + pop_dict["recovered"] + pop_dict["deaths"]
@@ -303,7 +295,7 @@ def generate_epi_params(model_parameters):
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
         # TODO move beta.A to model params
-        A = model_parameters["beta"] / N,
+        A=model_parameters["beta"] / N,
         # A = 0,
     )
 
@@ -330,15 +322,16 @@ def generate_epi_params(model_parameters):
         "beta": beta,
         "alpha": alpha,
         # TODO move gamma_a to model params
-        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = gamma_1),
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_1),
         # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
-        "f": .5 # TODO move to model params
+        "f": 0.5  # TODO move to model params
         # "f": 1 # TODO move to model params
     }
 
     return seir_params
+
 
 # TODO update to match latest model:
 # R0 = N*((1-f)*BA/gA + f*((B1/(p1+g1))+(p1/(p1+g1))*(B2/(p2+g2)+ (p2/(p2+g2))*(B3/(m+g3)))))
@@ -399,11 +392,12 @@ class L(list):
     a = L( 2 ** b for b in range(4) )( x="Hey!" )  # [1, 2, 4, 8]
     a = L( 2 )                                     # [2]
     """
+
     def __new__(self, *args, **kwargs):
         return super(L, self).__new__(self, args, kwargs)
 
     def __init__(self, *args, **kwargs):
-        if len(args) == 1 and hasattr(args[0], '__iter__'):
+        if len(args) == 1 and hasattr(args[0], "__iter__"):
             list.__init__(self, args[0])
         else:
             list.__init__(self, args)
