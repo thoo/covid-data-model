@@ -335,9 +335,7 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        # TODO move gamma_A to model params
-        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_1),
-        # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_A),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
         "f": convert_ratio_to_frac(
