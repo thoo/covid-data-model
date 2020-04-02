@@ -299,18 +299,22 @@ def generate_epi_params(model_parameters):
 
     alpha = 1 / model_parameters["presymptomatic_period"]
 
-    # assume hospitalized don't infect
+    ###################################################
+    # BETA: transmission rate (new cases per day).
+    # The rate at which infectious cases of various
+    # classes cause secondary or new cases.
+    ###################################################
     beta = L(
         0,
         model_parameters["beta"] / N,
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
-        # TODO move beta.A to model params
-        A=model_parameters["beta"] / N,
+        A=model_parameters["beta_asymp"] / N,
     )
 
     # have to calculate these in order and then put them into arrays
     gamma_0 = 0
+    gamma_A = (1 / model_parameters["duration_asymp_infections"])
     gamma_1 = (1 / model_parameters["duration_mild_infections"]) * (
         1 - model_parameters["hospitalization_rate"]
     )
@@ -331,7 +335,7 @@ def generate_epi_params(model_parameters):
     seir_params = {
         "beta": beta,
         "alpha": alpha,
-        # TODO move gamma_a to model params
+        # TODO move gamma_A to model params
         "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_1),
         # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
         "rho": [rho_0, rho_1, rho_2],
