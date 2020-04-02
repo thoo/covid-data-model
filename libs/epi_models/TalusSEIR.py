@@ -366,7 +366,7 @@ def generate_r0(seir_params, N):
 
     """
     # define parameters and parameter vectors
-    f = seir_params["asymp_to_mild_ratio"]
+    f = seir_params["f"]
     b = seir_params["beta"]
     p = seir_params["rho"]
     g = seir_params["gamma"]
@@ -388,7 +388,6 @@ def generate_r0(seir_params, N):
     # rhos
     p1 = p[1]
     p2 = p[2]
-    p3 = p[3]
 
     # calculate R0
     r0 = N * (
