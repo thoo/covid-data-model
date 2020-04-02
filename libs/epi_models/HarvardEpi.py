@@ -148,59 +148,155 @@ def dataframe_ify(data, start, end, steps):
     return sir_df
 
 
-# The SEIR model differential equations.
-# https://github.com/alsnhll/SEIR_COVID19/blob/master/SEIR_COVID19.ipynb
-# but these are the basics
-# y = initial conditions
-# t = a grid of time points (in days) - not currently used, but will be for time-dependent functions
-# N = total pop
-# beta = contact rate
-# gamma = mean recovery rate
-# Don't track S because all variables must add up to 1
-# include blank first entry in vector for beta, gamma, p so that indices align in equations and code.
-# In the future could include recovery or infection from the exposed class (asymptomatics)
 def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
-    dy = [0, 0, 0, 0, 0, 0]
+    """Calculate and return the current values of dE/dt, etc. for each model
+    compartment as numerical integration is performed. This function is the
+    first argument of the odeint numerical integrator function.
+
+    More information is available online at
+    https://github.com/alsnhll/SEIR_COVID19/blob/master/SEIR_COVID19.ipynb
+
+    Parameters
+    ----------
+    y0 : list
+        The values of the equations being integrated at X(t) where X is the
+        equation being integrated at timestep t.
+    t : float
+        NOT CURRENTLY USED. The current value of time.
+    beta : list of floats
+        Transmission rates (per day) for various classes of infectious people.
+    alpha : float
+        Rate (per day) at which exposed (E) individuals become infectious (I_1).
+    gamma : list of floats
+        Rates (per day) at which various classes of infected people recover.
+    rho : list of floats
+        Rates (per day) at which various classes of infected people develop
+        the next severity level of symptoms
+    mu : float
+        Rate (per day) at which infectious people with critical symptoms (I_3)
+        pass away.
+    N : int
+        The total number of individuals in the simulation.
+
+    Returns
+    -------
+    list
+        Deltas for the current timestemp of each equation that is being
+        integrated.
+
+    """
+    # define human-readable equation terms
+    # state equation variables
+    E = y0[0]
+    I1 = y0[1]
+    I2 = y0[2]
+    I3 = y0[3]
+    R = y0[4]
+    D = y0[5]
+
+    # other terms
+    I_all = [I1, I2, I3]
+    I_transmission = np.dot(beta[1:4], I_all)
+    I_recovery = np.dot(gamma[1:4], I_all)
+    I_sum = sum(I_all)
+
+    # susceptible (S) population is equation to the total population N minus
+    # the population of all other classes, and must be greater than zero.
     S = np.max([N - sum(y0), 0])
 
-    dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
-    dy[1] = (alpha * y0[0]) - (gamma[1] + rho[1]) * y0[1]  # Ia - Mildly ill
-    dy[2] = (rho[1] * y0[1]) - (gamma[2] + rho[2]) * y0[2]  # Ib - Hospitalized
-    dy[3] = (rho[2] * y0[2]) - ((gamma[3] + mu) * y0[3])  # Ic - ICU
-    dy[4] = np.min([np.dot(gamma[1:4], y0[1:4]), sum(y0[1:4])])  # Recovered
-    dy[5] = mu * y0[3]  # Deaths
+    dE = np.min([(I_transmission) * S, S]) - (alpha * E)  # Exposed
+    dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
+    dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
+    dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
+    dR = np.min([I_recovery, I_sum])  # Recovered
+    dD = mu * I3  # Deaths
 
+    # return a vector of the current deltas for each equation being integrated
+    dy = [dE, dI1, dI2, dI3, dR, dD]
     return dy
 
 
-# Sets up and runs the integration
-# start date and end date give the bounds of the simulation
-# pop_dict contains the initial populations
-# beta = contact rate
-# gamma = mean recovery rate
-# TODO: add other params from doc
 def seir(
     pop_dict, model_parameters, beta, alpha, gamma, rho, mu,
 ):
+    """Given various input parameters including initial populations and model
+    rate constants, performs a model run of the SEIR model, and returns the
+    values of the integrated differential equations for each simulated timestep.
 
+    Parameters
+    ----------
+    pop_dict : dict
+        Dictionary containing initial population values. If the populations of
+        the three types of infected classes are known, they should be defined
+        with keys "infected_a", "infected_b", and "infected_c". These other
+        populations should also be defined:
+            "total". The total population.
+            "infected". The initial infected (I_1 + I_2 + I_3) population.
+            "recovered". The initial recovered (R) population.
+            "deaths". The initial deceased (D) population.
+    model_parameters : dict
+        Dictionary of model parameters, including all physical/empirical values
+        needed to define all rate constants and the value of N (total pop.) used
+        in the SEIR model.
+    beta : list of floats
+        Transmission rates (per day) for various classes of infectious people.
+    alpha : float
+        Rate (per day) at which exposed (E) individuals become infectious (I_1).
+    gamma : list of floats
+        Rates (per day) at which various classes of infected people recover.
+    rho : list of floats
+        Rates (per day) at which various classes of infected people develop
+        the next severity level of symptoms
+    mu : float
+        Rate (per day) at which infectious people with critical symptoms (I_3)
+        pass away.
+
+    Returns
+    -------
+    list
+        Element 1: values of integrated differential equations at each timestep
+                   (transposed)
+        Element 2: timestemps over which numerical integration was performed
+        Element 3: values of integrated differential equations at each timestep
+                   (not transposed)
+
+    """
+
+    # total population to be simulated
     N = pop_dict["total"]
-    # assume that the first time you see an infected population it is mildly so
-    # after that, we'll have them broken out
-    if "infected_b" in pop_dict:
+
+    # if the initial populations of the three classes of infected people have
+    # been defined, use them. These values may have been defined if this
+    # simulation is resuming from where a prior simulation left off, e.g., to
+    # simulate the effect of an intervention at a certain timestep.
+    infected_pop_init_conditions_defined = "infected_b" in pop_dict
+    if infected_pop_init_conditions_defined:
         mild = pop_dict["infected_a"]
         hospitalized = pop_dict["infected_b"]
         icu = pop_dict["infected_c"]
+
+    # otherwise, if only the total number of infected people is known and not
+    # the specific number in each of the three severity classes, estimate the
+    # number of people in each severity class using model parameters and that
+    # total number of infected people.
     else:
         hospitalized = pop_dict["infected"] / 4
         mild = hospitalized / model_parameters["hospitalization_rate"]
-        icu = hospitalized * model_parameters["hospitalized_cases_requiring_icu_care"]
+        icu = \
+            hospitalized * \
+            model_parameters["hospitalized_cases_requiring_icu_care"]
 
+    # obtain number of exposed people at simulation start from the number of
+    # people in class I_1 (sick with mild symptoms)
     exposed = model_parameters["exposed_infected_ratio"] * mild
 
+    # let the number of susceptible people be any one not currently infected,
+    # recovered, or deceased
     susceptible = pop_dict["total"] - (
         pop_dict["infected"] + pop_dict["recovered"] + pop_dict["deaths"]
     )
 
+    # define list of initial conditions at t = 0 for numerical integrator
     y0 = [
         int(exposed),
         int(mild),
@@ -210,17 +306,32 @@ def seir(
         int(pop_dict.get("deaths", 0)),
     ]
 
+    # define number of timesteps to simulate and create a 0-indexed list of
+    # timestep indices 0..N where N = steps below
     steps = 365
     t = np.arange(0, steps, 1)
 
-    # get values of integrated differential equations at each timestemp
+    # get values of integrated differential equations at each timestep
     ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, N))
-
     return np.transpose(ret), steps, ret
 
 
-# for testing purposes, just load the Harvard output
 def harvard_model_params(N):
+    """For testing only: given the total number of people in the simulation,
+    return the default values of the Alison Hill model's parameters, available
+    online at https://alhill.shinyapps.io/COVID19seir/.
+
+    Parameters
+    ----------
+    N : int
+        Total number of people in the simulation.
+
+    Returns
+    -------
+    dict
+        Dictionary of model parameter vectors, including beta, gamma, etc.
+
+    """
     return {
         "beta": [0.0, 0.5 / N, 0.1 / N, 0.1 / N],
         "alpha": 0.2,
@@ -230,8 +341,24 @@ def harvard_model_params(N):
     }
 
 
-# for testing purposes, just load the Harvard output
 def r0_24_params(N):
+    """For testing only: given the total number of people in the simulation,
+    return the values of the Alison Hill model's parameters that yeild an R0
+    of 2.4. The model is available online at
+    https://alhill.shinyapps.io/COVID19seir/.
+
+    Parameters
+    ----------
+    N : int
+        Total number of people in the simulation.
+
+    Returns
+    -------
+    dict
+        Dictionary of model parameter vectors, including beta, gamma, etc. that
+        will yeild an R0 of 2.4 when used in the Alison Hill model.
+
+    """
     return {
         "beta": [0.0, 0.3719985820912413 / N, 0.1 / N, 0.1 / N],
         "alpha": 0.2,
@@ -241,49 +368,106 @@ def r0_24_params(N):
     }
 
 
-# for now just implement Harvard model, in the future use this to change
-# key params due to interventions
 def generate_epi_params(model_parameters):
+    """Given a dictionary of model parameters including some physical/empirical
+    values and possibly some rate constants, return a dictionary of the full set
+    of rate constants required to numerically integrate the SEIR model.
+
+    For additional information and references relating to these calculations,
+    see https://alhill.shinyapps.io/COVID19seir/ >> "Model" section.
+
+    Parameters
+    ----------
+    model_parameters : dict
+        Dictionary of model parameters, including all physical/empirical values
+        needed to define all rate constants and the value of N (total pop.) used
+        in the SEIR model.
+
+    Returns
+    -------
+    dict
+        Dictionary of SEIR parameters, all rate constants used in the model.
+
+    """
+    # N: total population.
     N = model_parameters["population"]
 
-    fraction_critical = (
-        model_parameters["hospitalization_rate"]
-        * model_parameters["hospitalized_cases_requiring_icu_care"]
-    )
-
-    fraction_severe = model_parameters["hospitalization_rate"] - fraction_critical
-
+    ############################################################################
+    # ALPHA: rate (per day) at which exposed (E)individuals become
+    # infectious (I_1). Calculated as the reciprocal of the incubation
+    # period (days).
+    ############################################################################
     alpha = 1 / model_parameters["presymptomatic_period"]
 
-    # assume hospitalized don't infect
+    ############################################################################
+    # BETA: transmission rates (per day) for various classes of
+    # infectious people. Currently determined directly from model parameters.
+    ############################################################################
     beta = [
+        # define placeholder for gamma list's zeroth element so human-readable
+        # indices can be used in calculations
         0,
         model_parameters["beta"] / N,
         model_parameters["beta_hospitalized"] / N,
         model_parameters["beta_icu"] / N,
     ]
 
-    # have to calculate these in order and then put them into arrays
+    ############################################################################
+    # GAMMA: rates (per day) at which various classes of infected and infectious
+    # people recover.
+    ############################################################################
+    # define placeholder for list's zeroth element so human-readable
+    # indices can be used in calculations
     gamma_0 = 0
+
+    # gamma_1: for class I_1
     gamma_1 = (1 / model_parameters["duration_mild_infections"]) * (
         1 - model_parameters["hospitalization_rate"]
     )
 
+    # NOTE: gamma_2 depends on rho_2 and is calculated in the rho section
+
+    # fraction of infected cases that develop critical symptoms (ICU)
+    fraction_critical = (
+        model_parameters["hospitalization_rate"]
+        * model_parameters["hospitalized_cases_requiring_icu_care"]
+    )
+
+    # fraction of infected cases that develop severe symptoms (hospitalized)
+    fraction_severe = model_parameters["hospitalization_rate"] \
+        - fraction_critical
+
+    ############################################################################
+    # RHO: rates (per day) at which various classes of infected people develop
+    # the next severity level of symptoms.
+    ############################################################################
+    # define placeholder for list's zeroth element so human-readable
+    # indices can be used in calculations
     rho_0 = 0
+
+    # rho_1: for class I_1
     rho_1 = (1 / model_parameters["duration_mild_infections"]) - gamma_1
 
+    # rho_2: for class I_2
     rho_2 = (1 / model_parameters["hospital_time_recovery"]) * (
         (fraction_critical / (fraction_severe + fraction_critical))
     )
 
+    # gamma_2: for class I_2, and which is calculated from rho_2
     gamma_2 = (1 / model_parameters["hospital_time_recovery"]) - rho_2
 
+    ############################################################################
+    # MU: rate (per day) at which infectious people with critical symptoms (I_3)
+    # pass away.
+    ############################################################################
     mu = (1 / model_parameters["icu_time_death"]) * (
         model_parameters["case_fatality_rate"] / fraction_critical
     )
 
+    # gamma_3: for class I_3, and which is calculated from mu
     gamma_3 = (1 / model_parameters["icu_time_death"]) - mu
 
+    # collate SEIR rate constants into a dictionary of parameters and return it
     seir_params = {
         "beta": beta,
         "alpha": alpha,
@@ -291,16 +475,35 @@ def generate_epi_params(model_parameters):
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
     }
-
     return seir_params
 
 
 def generate_r0(seir_params, N):
+    """Given the SEIR parameters dictionary and the number of people in the
+    population, returns the value of R0 calculated directly from the
+    differential equations (not numerically).
+
+    Parameters
+    ----------
+    seir_params : dict
+        Dictionary of model parameter vectors, including beta, gamma, etc.
+    N : int
+        Number of people in the population.
+
+    Returns
+    -------
+    float
+        R0 for the model.
+
+    """
+    # define rate constnats from SEIR parameters dictonary
     b = seir_params["beta"]
     p = seir_params["rho"]
     g = seir_params["gamma"]
     u = seir_params["mu"]
 
+    # calculate theoretical R0 from model equations solved at steady state
+    # conditions
     r0 = N * (
         (b[1] / (p[1] + g[1]))
         + (p[1] / (p[1] + g[1]))
