@@ -234,8 +234,6 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
         pop_dict["infected"] + pop_dict["recovered"] + pop_dict["deaths"]
     )
 
-    asymp = 0
-
     y0 = [
         int(pop_dict.get("exposed", 0)),
         int(mild),
