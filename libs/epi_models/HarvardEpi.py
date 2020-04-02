@@ -205,7 +205,7 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
     S = np.max([N - sum(y0), 0])
 
     dE = np.min([(I_transmission) * S, S]) - (alpha * E)  # Exposed
-    dI1 = (f * alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
+    dI1 = (alpha * E) - (gamma[1] + rho[1]) * I1  # Ia - Mildly ill
     dI2 = (rho[1] * I1) - (gamma[2] + rho[2]) * I2  # Ib - Hospitalized
     dI3 = (rho[2] * I2) - ((gamma[3] + mu) * I3)  # Ic - ICU
     dR = np.min([I_recovery, I_sum])  # Recovered
