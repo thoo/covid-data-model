@@ -294,7 +294,6 @@ def generate_epi_params(model_parameters):
         model_parameters["beta_icu"] / N,
         # TODO move beta.A to model params
         A=model_parameters["beta"] / N,
-        # A = 0,
     )
 
     # have to calculate these in order and then put them into arrays
@@ -324,8 +323,10 @@ def generate_epi_params(model_parameters):
         # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
-        "f": 0.5  # TODO move to model params
-        # "f": 1 # TODO move to model params
+        "f": convert_ratio_to_frac(
+            model_parameters["asymp_to_mild_ratio"],
+            numerator='second'
+        )
     }
 
     return seir_params
@@ -349,26 +350,32 @@ def generate_r0(seir_params, N):
         Description of returned object.
 
     """
+    # define parameters and parameter vectors
     f = seir_params["asymp_to_mild_ratio"]
     b = seir_params["beta"]
     p = seir_params["rho"]
     g = seir_params["gamma"]
     m = seir_params["mu"]
 
+    # define individual variables used in the R0 formula for legibility
+    # betas
     BA = b.A
     B1 = b[1]
     B2 = b[2]
     B3 = b[3]
 
+    # gammas
     gA = g.A
     g1 = g[1]
     g2 = g[2]
     g3 = g[3]
 
+    # rhos
     p1 = p[1]
     p2 = p[2]
     p3 = p[3]
 
+    # calculate R0
     r0 = N * (
         (1 - f) * BA / gA + \
         f * (
@@ -385,6 +392,32 @@ def generate_r0(seir_params, N):
     # )
 
     return r0
+
+
+def convert_ratio_to_frac(x, numerator='second'):
+    """Given a ratio x where x = a / b, returns the corresponding fraction
+    assuming that b is the numerator.
+
+    Parameters
+    ----------
+    x : float
+        ratio where x = a /b.
+    numerator : string
+        if 'second': returns fraction assuming b is numerator.
+        if 'first': returns fraction assuming a is numerator.
+
+    Returns
+    -------
+    float
+        fraction assuming b is the numerator by default, i.e., b / (a + b).
+        if 'first' was specified as `numerator` then returns fraction assuming
+            a is the numerator, i.e., a / (a + b)
+
+    """
+    if numerator == 'second':
+        return 1 / (x + 1)
+    else:
+        return x / (x + 1)
 
 
 # Credit: http://code.activestate.com/recipes/579103-python-addset-attributes-to-list/
