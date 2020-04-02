@@ -332,22 +332,22 @@ def generate_epi_params(model_parameters):
     return seir_params
 
 
-# TODO update to match latest model:
-# R0 = N*((1-f)*BA/gA + f*((B1/(p1+g1))+(p1/(p1+g1))*(B2/(p2+g2)+ (p2/(p2+g2))*(B3/(m+g3)))))
 def generate_r0(seir_params, N):
-    """Short summary.
+    """Given SEIR params including those for an asymptomatic, infectious (A)
+    class, and the number of people in the population, returns the value of R0
+    calculated directly from the differential equations (NOT numerically).
 
     Parameters
     ----------
-    seir_params : type
-        Description of parameter `seir_params`.
-    N : type
-        Description of parameter `N`.
+    seir_params : dict
+        Dictionary of model parameter vectors, including beta, gamma, etc.
+    N : int
+        Number of people in the population.
 
     Returns
     -------
-    type
-        Description of returned object.
+    float
+        R0 for the model.
 
     """
     # define parameters and parameter vectors
