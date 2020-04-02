@@ -82,7 +82,6 @@ def dataframe_ify(data, start, end, steps):
 # In the future could include recovery or infection from the exposed class (asymptomatics)
 def deriv(y0, t, beta, alpha, gamma, rho, mu, N):
     dy = [0, 0, 0, 0, 0, 0]
-    # S = N - sum(y0)
     S = np.max([N - sum(y0), 0])
 
     dy[0] = np.min([(np.dot(beta[1:4], y0[1:4]) * S), S]) - (alpha * y0[0])  # Exposed
@@ -117,12 +116,14 @@ def seir(
         mild = hospitalized / model_parameters["hospitalization_rate"]
         icu = hospitalized * model_parameters["hospitalized_cases_requiring_icu_care"]
 
+    exposed = model_parameters["exposed_infected_ratio"] * mild
+
     susceptible = pop_dict["total"] - (
         pop_dict["infected"] + pop_dict["recovered"] + pop_dict["deaths"]
     )
 
     y0 = [
-        int(pop_dict.get("exposed", 0)),
+        int(exposed),
         int(mild),
         int(hospitalized),
         int(icu),
@@ -170,6 +171,8 @@ def generate_epi_params(model_parameters):
         * model_parameters["hospitalized_cases_requiring_icu_care"]
     )
 
+    fraction_severe = model_parameters["hospitalization_rate"] - fraction_critical
+
     alpha = 1 / model_parameters["presymptomatic_period"]
 
     # assume hospitalized don't infect
@@ -188,8 +191,9 @@ def generate_epi_params(model_parameters):
 
     rho_0 = 0
     rho_1 = (1 / model_parameters["duration_mild_infections"]) - gamma_1
+
     rho_2 = (1 / model_parameters["hospital_time_recovery"]) * (
-        fraction_critical / model_parameters["hospitalization_rate"]
+        (fraction_critical / (fraction_severe + fraction_critical))
     )
 
     gamma_2 = (1 / model_parameters["hospital_time_recovery"]) - rho_2
@@ -197,6 +201,7 @@ def generate_epi_params(model_parameters):
     mu = (1 / model_parameters["icu_time_death"]) * (
         model_parameters["case_fatality_rate"] / fraction_critical
     )
+
     gamma_3 = (1 / model_parameters["icu_time_death"]) - mu
 
     seir_params = {
