@@ -4,6 +4,9 @@ results/*.json
 results/test/*.csv
 results/test/*.json
 
+# Shell scripts
+bin/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
