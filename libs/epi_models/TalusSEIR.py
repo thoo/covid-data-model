@@ -349,16 +349,40 @@ def generate_r0(seir_params, N):
         Description of returned object.
 
     """
+    f = seir_params["asymp_to_mild_ratio"]
     b = seir_params["beta"]
     p = seir_params["rho"]
     g = seir_params["gamma"]
-    u = seir_params["mu"]
+    m = seir_params["mu"]
+
+    BA = b.A
+    B1 = b[1]
+    B2 = b[2]
+    B3 = b[3]
+
+    gA = g.A
+    g1 = g[1]
+    g2 = g[2]
+    g3 = g[3]
+
+    p1 = p[1]
+    p2 = p[2]
+    p3 = p[3]
 
     r0 = N * (
-        (b[1] / (p[1] + g[1]))
-        + (p[1] / (p[1] + g[1]))
-        * (b[2] / (p[2] + g[2]) + (p[2] / (p[2] + g[2])) * (b[3] / (u + g[3])))
+        (1 - f) * BA / gA + \
+        f * (
+            (B1 / (p1 + g1)) + \
+            (p1 / (p1 + g1)) * (B2 / (p2 + g2) + (p2 / (p2 + g2)) * (B3 / (m + g3)))
+        )
     )
+
+    # # R0 formula for this model without an A compartment
+    # r0 = N * (
+    #     (b[1] / (p[1] + g[1]))
+    #     + (p[1] / (p[1] + g[1]))
+    #     * (b[2] / (p[2] + g[2]) + (p[2] / (p[2] + g[2])) * (b[3] / (u + g[3])))
+    # )
 
     return r0
 
