@@ -277,6 +277,19 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
 # for now just implement Harvard model, in the future use this to change
 # key params due to interventions
 def generate_epi_params(model_parameters):
+    """Short summary.
+
+    Parameters
+    ----------
+    model_parameters : type
+        Description of parameter `model_parameters`.
+
+    Returns
+    -------
+    type
+        Description of returned object.
+
+    """
     N = model_parameters["population"]
 
     fraction_critical = (
@@ -378,10 +391,11 @@ def generate_r0(seir_params, N):
     # calculate R0
     r0 = N * (
         (1 - f) * BA / gA + \
-        f * (
-            (B1 / (p1 + g1)) + \
-            (p1 / (p1 + g1)) * (B2 / (p2 + g2) + (p2 / (p2 + g2)) * (B3 / (m + g3)))
-        )
+            f * (
+                (B1 / (p1 + g1)) + \
+                    (p1 / (p1 + g1)) * \
+                        (B2 / (p2 + g2) + (p2 / (p2 + g2)) * (B3 / (m + g3)))
+            )
     )
 
     # # R0 formula for this model without an A compartment
