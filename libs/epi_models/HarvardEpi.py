@@ -1,39 +1,87 @@
+"""Implementation of an SEIR compartment model with R = Recovered + Deceased,
+I = I1 + I2 + I3 (increasing severity of infection), Susceptibles (S) and
+Exposed (E).
+"""
+
+# standard modules
 import datetime
 
+# 3rd party modules
 import numpy as np
 import pandas as pd
-
-# odeint might work, moving it out didn't solve the problem
-# but for now let's keep doing the integration manually, it's
-# clearer what's going on and performance didn't seem to take a hit
 from scipy.integrate import odeint
 
 
 def brute_force_r0(seir_params, new_r0, r0, N):
+    """Given a target R0 `new_r0`, tune the value of beta_1 until the value of
+    R0 calculated from the model parameters is equal to the target R0 `new_r0`,
+    updates the SEIR parameters dictionary to include the updated beta_1, and
+    returns the updated SEIR parameters dictionary.
+
+    This procedure is used to simulate the effect of interventions that are
+    assumed to reduce R0 from the time they're applied until a specified future
+    time. The timeframe of interventions and the R0 value they are assumed to
+    yeild are defined in driver code (e.g., run.py).
+
+    Parameters
+    ----------
+    seir_params : dict
+        Dictonary of model parameters, including beta, which is tuned in this
+        function until the calculated R0 equals `new_r0`.
+    new_r0 : float
+        The value of R0 that a particular intervention is assumed to yeild.
+    r0 : float
+        The current value of R0.
+    N : int
+        The total population in the simulation.
+
+    Returns
+    -------
+    dict
+        Updated SEIR parameter dictionary including the updated value of beta_1
+        that yeilded `new_r0`.
+
+    """
+    # init the calculated R0 equal to the current R0
     calc_r0 = r0
 
+    # initially, "nudge" the current value of beta_1 by a small epsilon,
+    # hopefully closer toward a value that will yeild the target value of R0
+    # `new_r0`.
     change = np.sign(new_r0 - calc_r0) * 0.00005
-    # step = 0.1
-    # direction = 1 if change > 0 else -1
 
+    # init the new SEIR parameter dictionary as a copy of the original; these
+    # will be returned by this func at the end.
     new_seir_params = seir_params.copy()
 
+    # continue iterations until the calculated R0 is very close to the target
+    # r0 `new_r0`.
     while round(new_r0, 4) != round(calc_r0, 4):
+
+        # nudge beta_1 in a direction that will bring the calculated R0
+        # closer to the `new_r0`.
         new_seir_params["beta"] = [
             0.0,
             new_seir_params["beta"][1] + change,
             new_seir_params["beta"][2],
             new_seir_params["beta"][3],
         ]
+
+        # get the new calculated R0 value using the theoretical solution for it
+        # for this model
         calc_r0 = generate_r0(new_seir_params, N)
 
+        # if the sign of the difference between the target and calculated R0
+        # has changed, halve the size of the "nudge" and change its direction,
+        # since the algorithm overshot past the target R0.
         diff_r0 = new_r0 - calc_r0
-
-        # if the sign has changed, we overshot, turn around with a smaller
-        # step
         if np.sign(diff_r0) != np.sign(change):
             change = -change / 2
 
+        # otherwise, leave the value of `change` alone and keep iterating
+
+    # return the updated dictionary of SEIR parameters including the updated
+    # value of beta_1 that yeilds `new_r0`.
     return new_seir_params
 
 
