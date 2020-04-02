@@ -7,8 +7,8 @@ import datetime
 import numpy as np
 import pandas as pd
 
-from .epi_models.HarvardEpi import (
-# from .epi_models.TalusSEIR import (
+# from .epi_models.HarvardEpi import (
+from .epi_models.TalusSEIR import (
     seir,
     dataframe_ify,
     generate_epi_params,
