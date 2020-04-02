@@ -86,15 +86,44 @@ def brute_force_r0(seir_params, new_r0, r0, N):
 
 
 def dataframe_ify(data, start, end, steps):
-    last_period = start + datetime.timedelta(days=(steps - 1))
+    """Convert model run data into a DataFrame for viewing and exploration.
 
+    Parameters
+    ----------
+    data : list of lists
+        Output of odeint (see function `seir` below), which is a list of lists:
+        one list per modeled timestep containing the value of each integrated
+        equation at that timestemp.
+    start : datetime.date
+        Date of the start of the simulation.
+    end : datetime.date
+        NOT CURRENTLY USED. The end date is automatically calculated by adding
+        a number of days equal to the number of simulation timesteps minus 1
+        to the start argument.
+    steps : type
+        Description of parameter `steps`.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Dataframe containing the results of the simulation in human-friendly
+        format.
+
+    """
+    # calculate end date of dataframe based on start date so the number of days
+    # within the timeframe is identical to the number of timesteps in the
+    # simulation.
+    end = start + datetime.timedelta(days=(steps - 1))
+
+    # get list of timesteps (dates between the start and end dates)
     timesteps = pd.date_range(
-        # start=start, end=last_period, periods=steps, freq=='D',
         start=start,
-        end=last_period,
+        end=end,
         freq="D",
     ).to_list()
 
+    # zip up data from the ODE integrator solution output into a human-readable
+    # dataframe with column names
     sir_df = pd.DataFrame(
         zip(data[0], data[1], data[2], data[3], data[4], data[5]),
         columns=[
@@ -108,12 +137,14 @@ def dataframe_ify(data, start, end, steps):
         index=timesteps,
     )
 
-    # reample the values to be daily
+    # resample the values to be daily, in case they aren't already
     sir_df.resample("1D").sum()
 
-    # drop anything after the end day
+    # ensure no data beyond the end day are returned
     sir_df = sir_df.loc[:end]
 
+    # return dataframe containing the results of the simulation in
+    # human-friendly format
     return sir_df
 
 
@@ -182,6 +213,7 @@ def seir(
     steps = 365
     t = np.arange(0, steps, 1)
 
+    # get values of integrated differential equations at each timestemp
     ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, N))
 
     return np.transpose(ret), steps, ret
