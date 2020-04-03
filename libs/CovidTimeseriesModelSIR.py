@@ -12,8 +12,8 @@ from .epi_models.TalusSEIR import (
     seir,
     dataframe_ify,
     generate_epi_params,
-    # harvard_model_params,
-    # r0_24_params,
+    harvard_model_params,
+    r0_24_params,
     generate_r0,
     brute_force_r0,
 )
@@ -301,9 +301,6 @@ class CovidTimeseriesModelSIR:
             )
 
             combined_df.loc[:, "infected"].fillna(combined_df["infected_tmp"])
-
-            print(combined_df.iloc[51:].head())
-
             combined_df.drop("infected_tmp", axis=1, inplace=True)
 
         non_susceptible_cols = all_cols.copy()

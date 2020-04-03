@@ -252,9 +252,6 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
     steps = 365
     t = np.arange(0, steps, 1)
 
-    print('\nt')
-    print(t)
-
     # get values of differential equation variables at each timestemp
     ret = odeint(deriv, y0, t, args=(beta, alpha, gamma, rho, mu, f, N))
     return np.transpose(ret), steps, ret
@@ -484,3 +481,57 @@ class L(list):
     def __call__(self, **kwargs):
         self.__dict__.update(kwargs)
         return self
+
+
+def harvard_model_params(N):
+    """For testing only: given the total number of people in the simulation,
+    return the default values of the Alison Hill model's parameters, available
+    online at https://alhill.shinyapps.io/COVID19seir/.
+
+    Parameters
+    ----------
+    N : int
+        Total number of people in the simulation.
+
+    Returns
+    -------
+    dict
+        Dictionary of model parameter vectors, including beta, gamma, etc.
+
+    """
+    return {
+        "beta": [0.0, 0.5 / N, 0.1 / N, 0.1 / N],
+        "alpha": 0.2,
+        "gamma": [0.0, 0.133, 0.125, 0.075],
+        "rho": [0.0, 0.033, 0.042],
+        "mu": 0.05,
+        "f": 1,
+    }
+
+
+def r0_24_params(N):
+    """For testing only: given the total number of people in the simulation,
+    return the values of the Alison Hill model's parameters that yeild an R0
+    of 2.4. The model is available online at
+    https://alhill.shinyapps.io/COVID19seir/.
+
+    Parameters
+    ----------
+    N : int
+        Total number of people in the simulation.
+
+    Returns
+    -------
+    dict
+        Dictionary of model parameter vectors, including beta, gamma, etc. that
+        will yeild an R0 of 2.4 when used in the Alison Hill model.
+
+    """
+    return {
+        "beta": [0.0, 0.3719985820912413 / N, 0.1 / N, 0.1 / N],
+        "alpha": 0.2,
+        "gamma": [0.0, 0.133, 0.125, 0.075],
+        "rho": [0.0, 0.033, 0.042],
+        "mu": 0.05,
+        "f": 1,
+    }
