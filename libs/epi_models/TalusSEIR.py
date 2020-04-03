@@ -176,6 +176,8 @@ def deriv(y0, t, beta, alpha, gamma, rho, mu, f, N):
     mu : float
         Rate (per day) at which infectious people with critical symptoms (I_3)
         pass away.
+    f : float
+        Fraction of infections that are symptomatic (unitless).
     N : int
         The total number of individuals in the simulation.
 
@@ -253,6 +255,8 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
     mu : float
         Rate (per day) at which infectious people with critical symptoms (I_3)
         pass away.
+    f : float
+        Fraction of infections that are symptomatic (unitless).
 
     Returns
     -------
@@ -430,6 +434,8 @@ def generate_epi_params(model_parameters):
         "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_A),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
+
+        # f. Fraction of infections that are asymptomatic (unitless)
         "f": convert_ratio_to_frac(
             model_parameters["asymp_to_mild_ratio"],
             numerator='second_term'
