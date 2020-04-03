@@ -2,10 +2,13 @@ import pandas as pd
 import numpy as np
 import requests
 import datetime
+import os.path
 import pprint
 import shapefile
+import simplejson
 from urllib.parse import urlparse
 
+from .build_params import OUTPUT_DIR
 from .CovidDatasets import get_public_data_base_url
 from .us_state_abbrev import us_state_abbrev, us_fips
 
@@ -34,8 +37,52 @@ def get_abbrev_df():
 def get_projections_3_26_df():
     return pd.read_csv('projections_03-26-2020.csv')
 
+def get_hospitals_and_shortfalls(projection, days_out): 
+    for row in projection:
+        row_time = datetime.datetime.strptime(row[1], '%m/%d/%y')
+
+        if row_time >= days_out:
+            hospitalizations = int(row[9])
+            beds = int(row[12])
+            short_fall = abs(beds - hospitalizations) if hospitalizations > beds else 0
+            return hospitalizations, short_fall
+    return 0, 0
+
 def get_projections_df():
-    return pd.read_csv('projections_3_31_2020.csv')
+    # for each state in our data look at the results we generated via run.py 
+    # to create the projections
+    intervention_type = 0 # None, as requested
+
+    # get 16 and 32 days out from now
+    today = datetime.datetime.now()
+    sixteen_days = today + datetime.timedelta(days=16)
+    thirty_two_days = today + datetime.timedelta(days=32)
+
+    #save results in a list of lists, converted to df later
+    results = []
+
+    for state in list(us_state_abbrev.values()):
+        file_name = f"{state}.{intervention_type}.json"
+        path = os.path.join(OUTPUT_DIR, file_name)
+
+        # if the file exists in that directory then process
+        if os.path.exists(path):
+            with open(path, "r") as projections:
+                # note that the projections have an extra column vs the web data
+                projection =  simplejson.load(projections)
+
+                hosp_16_days, short_fall_16_days = get_hospitals_and_shortfalls(projection, sixteen_days)
+                hosp_32_days, short_fall_32_days = get_hospitals_and_shortfalls(projection, thirty_two_days)
+
+                results.append([state, hosp_16_days, hosp_32_days, short_fall_16_days, short_fall_32_days])
+   
+    headers = [
+        'State',
+        '16-day_Hospitalization_Prediction',
+        '32-day_Hospitalization_Prediction',
+        '16-day_Beds_Shortfall','32-day_Beds_Shortfall'
+    ] # used for pandas
+    return pd.DataFrame(results, columns=headers)   
 
 output_cols = ["Province/State",
     "Country/Region",
@@ -49,15 +96,10 @@ output_cols = ["Province/State",
     "County",
     "State/County FIPS Code",
     "Combined Key",
-    "Incident Rate",
-    "People Tested",
-    "Shape"
+    # Incident rate and people tested do not seem to be available yet
+    # "Incident Rate",
+    # "People Tested",
 ]
-
-new_cols = ['16-day_Hospitalization_Prediction',
-    '32-day_Hospitalization_Prediction',
-    '16-day_Beds_Shortfall',
-    '32-day_Beds_Shortfall']
 
 county_replace_with_null = {
     "Unassigned": NULL_VALUE
@@ -83,7 +125,6 @@ def get_usa_by_county_df():
     us_df = remapped_df[(remapped_df["Country/Region"] == "US")]
 
     final_df = pd.DataFrame(us_df, columns=output_cols)
-    final_df["Shape"] = "Point"
     final_df['Last Update'] = pd.to_datetime(final_df['Last Update'])
     final_df['Last Update'] = final_df['Last Update'].dt.strftime(
         '%-m/%-d/%Y %H:%M')
@@ -107,7 +148,6 @@ def get_usa_by_states_df():
     abbrev_df = get_abbrev_df()
     interventions_df = get_interventions_df()
     projections_df = get_projections_df()
-    print(projections_df)
 
     states_group = us_only.groupby(['Province/State'])
     states_agg = states_group.aggregate({
@@ -123,6 +163,7 @@ def get_usa_by_states_df():
         #'People Tested': 'sum'
     })
 
+    # basically the states_agg has full state names, the interventions have abbreviation so we need these to be merged
     states_abbrev = states_agg.merge(
         abbrev_df, left_index=True, right_on='state', how='left'
     ).merge(
@@ -134,32 +175,24 @@ def get_usa_by_states_df():
 
     state_col_remap = {
         'state_x': 'Province/State',
-        'Projection1': '4-day Hospitalizations Prediction',
-        'Projection2': '8-day Hospitalizations Prediction',
-        'intervention': 'Intervention'
+        'intervention': 'Intervention',
+        '16-day_Hospitalization_Prediction': '16d-HSPTLZD',
+        '32-day_Hospitalization_Prediction': '32d-HSPTLZD',
+        '16-day_Beds_Shortfall': '16d-LACKBEDS',
+        '32-day_Beds_Shortfall': '32d-LACKBEDS'
     }
-
-    # 'Projection1': '16-day_Hopitalization_Prediction',
-    # 'Projection2': '32-day_Hospitalization_Prediction',
-    # 'Projection1': '16-day_Beds_Shortfall',
-    # 'Projection2': '32-day_Beds_Shortwall',
-
 
     states_remapped = states_abbrev.rename(columns=state_col_remap)
 
-    # TODO: filter out county-specific columns
-    state_cols = output_cols + ['Intervention', '4-day Hospitalizations Prediction', '8-day Hospitalizations Prediction']
-    state_cols += new_cols
-
-    states_final = pd.DataFrame(states_remapped, columns=state_cols)
-    states_final['Shape'] = 'Point'
+    new_cols = list(set(output_cols + list(state_col_remap.values())))
+    states_final = pd.DataFrame(states_remapped, columns=new_cols)
     states_final = states_final.fillna(NULL_VALUE)
     states_final['Combined Key'] = states_final['Province/State']
     states_final['State/County FIPS Code'] = states_final['Province/State'].map(us_fips)
 
-    # temporarily nullify predictions
-    states_final['8-day Hospitalizations Prediction'] = NULL_VALUE
-    states_final['4-day Hospitalizations Prediction'] = NULL_VALUE
+    # Missing 4d/8d numberse from model?
+    states_final['4d-HSPTLZD'] = NULL_VALUE
+    states_final['8d-HSPTLZD'] = NULL_VALUE
 
     states_final.index.name = 'OBJECTID'
     # assert unique key test
@@ -167,10 +200,11 @@ def get_usa_by_states_df():
 
     return states_final
 
-# note it's unclear to me if 'Incident Rate' is a number, float, etc
 def join_and_output_shapefile(df, shp_reader, pivot_shp_field, pivot_df_column, shp_writer):
-    fields = ['Confirmed', 'Recovered', 'Deaths', 'Active', 'Incident Rate', 'People Tested', 'Intervention', '4-day Hospitalizations Prediction', '8-day Hospitalizations Prediction'] + new_cols
-    fields = [field for field in fields if field in df.columns]
+    blacklisted_fields = ['OBJECTID', 'Province/State', 'Country/Region', 'Last Update',
+        'Latitude', 'Longitude', 'County', 'State/County FIPS Code', 'Combined Key']
+
+    fields = [field for field in df.columns if field not in blacklisted_fields]
 
     shp_writer.fields = shp_reader.fields # Preserve fields that come from the census
 
@@ -180,7 +214,11 @@ def join_and_output_shapefile(df, shp_reader, pivot_shp_field, pivot_df_column, 
         else:
             shp_writer.field(field_name, 'N', size=14)
 
-    for shapeRecord in shp_reader.shapeRecords():
+    shapeRecords = shp_reader.shapeRecords()
+    # if you are using a local copy of the data, LFS truncates the records  
+    assert len(shapeRecords) >= 50
+
+    for shapeRecord in shapeRecords:
         try:
             row = df[df[pivot_df_column] == shapeRecord.record[pivot_shp_field]].iloc[0]
         except:
@@ -188,8 +226,7 @@ def join_and_output_shapefile(df, shp_reader, pivot_shp_field, pivot_df_column, 
 
         new_record = shapeRecord.record.as_dict()
         for field_name in fields:
-            # random bad data seems to come back as this weird string, not too sure about this
-            new_record[field_name] = None if row[field_name] == '<Null>' else row[field_name]
+            new_record[field_name] = None if row[field_name] == NULL_VALUE else row[field_name]
         shp_writer.shape(shapeRecord.shape)
         shp_writer.record(**new_record)
 
