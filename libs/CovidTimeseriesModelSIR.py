@@ -7,12 +7,13 @@ import numbers
 import numpy as np
 import pandas as pd
 
-from .epi_models.HarvardEpi import (
+# from .epi_models.HarvardEpi import (
+from .epi_models.TalusSEIR import (
     seir,
     dataframe_ify,
     generate_epi_params,
-    harvard_model_params,
-    r0_24_params,
+    # harvard_model_params,
+    # r0_24_params,
     generate_r0,
     brute_force_r0,
 )
@@ -148,15 +149,7 @@ class CovidTimeseriesModelSIR:
                     pop_dict["infected_b"] = combined_df.loc[date, "infected_b"]
                     pop_dict["infected_c"] = combined_df.loc[date, "infected_c"]
 
-                (data, steps, ret) = seir(
-                    pop_dict,
-                    model_parameters,
-                    new_seir_params["beta"],
-                    new_seir_params["alpha"],
-                    new_seir_params["gamma"],
-                    new_seir_params["rho"],
-                    new_seir_params["mu"],
-                )
+                (data, steps, ret) = seir(pop_dict, model_parameters, **new_seir_params)
 
                 new_df = dataframe_ify(data, date, end_date, steps,)
 
@@ -258,18 +251,7 @@ class CovidTimeseriesModelSIR:
 
         r0 = generate_r0(init_params, model_parameters["population"])
 
-        print(json.dumps(init_params))
-        print(r0)
-
-        (data, steps, ret) = seir(
-            pop_dict,
-            model_parameters,
-            init_params["beta"],
-            init_params["alpha"],
-            init_params["gamma"],
-            init_params["rho"],
-            init_params["mu"],
-        )
+        (data, steps, ret) = seir(pop_dict, model_parameters, **init_params)
 
         # this dataframe should start on the last day of the actual data
         # and have the same values for those initial days, so we combine it with
@@ -353,6 +335,8 @@ class CovidTimeseriesModelSIR:
             )
 
             combined_df.loc[:, "infected"].fillna(combined_df["infected_tmp"])
+
+            print(combined_df.iloc[51:].head())
 
             combined_df.drop("infected_tmp", axis=1, inplace=True)
 
