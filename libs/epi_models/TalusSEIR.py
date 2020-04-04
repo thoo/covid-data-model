@@ -5,11 +5,14 @@ infectious compartment (A).
 
 # standard modules
 import datetime
+import logging
 
 # 3rd party modules
 import numpy as np
 import pandas as pd
 from scipy.integrate import odeint
+
+_logger = logging.getLogger(__name__)
 
 
 def brute_force_r0(seir_params, new_r0, r0, N):
@@ -56,6 +59,8 @@ def brute_force_r0(seir_params, new_r0, r0, N):
         # step
         if np.sign(diff_r0) != np.sign(change):
             change = -change / 2
+
+    new_seir_params["beta"] = L(new_seir_params["beta"])
 
     return new_seir_params
 
@@ -217,27 +222,32 @@ def seir(pop_dict, model_parameters, beta, alpha, gamma, rho, mu, f):
 
     """
     N = pop_dict["total"]
-    # assume that the first time you see an infected population it is mildly so
-    # after that, we'll have them broken out
+
+    # this should be an intervention run, so the initial conditions are more
+    # fleshed out
     if "infected_b" in pop_dict:
         mild = pop_dict["infected_a"]
         hospitalized = pop_dict["infected_b"]
         icu = pop_dict["infected_c"]
         asymp = pop_dict["asymp"]
+    # this is an inital run, will have to build the initial conditions from the
+    # timeseries data
     else:
         hospitalized = pop_dict["infected"] / 4
         mild = hospitalized / model_parameters["hospitalization_rate"]
         icu = hospitalized * model_parameters["hospitalized_cases_requiring_icu_care"]
-        asymp = mild * model_parameters["asymp_to_mild_ratio"]
+        asymp = mild * (
+            model_parameters["percent_asymp"] / 1 - model_parameters["percent_asymp"]
+        )
+
+    exposed = model_parameters["exposed_infected_ratio"] * mild
 
     susceptible = pop_dict["total"] - (
         pop_dict["infected"] + pop_dict["recovered"] + pop_dict["deaths"]
     )
 
-    asymp = 0
-
     y0 = [
-        int(pop_dict.get("exposed", 0)),
+        int(exposed),
         int(mild),
         int(hospitalized),
         int(icu),
@@ -282,13 +292,13 @@ def generate_epi_params(model_parameters):
     N = model_parameters["population"]
 
     fraction_critical = (
-        model_parameters["hospitalization_rate"]
+        (1 - model_parameters["percent_asymp"])
+        * model_parameters["hospitalization_rate"]
         * model_parameters["hospitalized_cases_requiring_icu_care"]
     )
 
     alpha = 1 / model_parameters["presymptomatic_period"]
 
-    # assume hospitalized don't infect
     beta = L(
         0,
         model_parameters["beta"] / N,
@@ -326,11 +336,33 @@ def generate_epi_params(model_parameters):
         # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
         "rho": [rho_0, rho_1, rho_2],
         "mu": mu,
-        "f": 0.5  # TODO move to model params
-        # "f": 1 # TODO move to model params
+        "f": model_parameters["percent_asymp"],
     }
 
     return seir_params
+
+
+def convert_ratio_to_frac(x, numerator="second_term"):
+    """Given a ratio x where x = a / b, returns the corresponding fraction
+    assuming that b is the numerator by default.
+    Parameters
+    ----------
+    x : float
+        ratio where x = a /b.
+    numerator : string
+        if 'second_term': returns fraction assuming b is numerator.
+        if 'first_term': returns fraction assuming a is numerator.
+    Returns
+    -------
+    float
+        fraction assuming b is the numerator by default, i.e., b / (a + b).
+        if 'first_term' was specified as `numerator` then returns fraction
+            assuming a is the numerator, i.e., a / (a + b)
+    """
+    if numerator == "second_term":
+        return 1 / (x + 1)
+    else:
+        return x / (x + 1)
 
 
 # TODO update to match latest model:

@@ -7,30 +7,19 @@ import numbers
 import numpy as np
 import pandas as pd
 
-from .epi_models.HarvardEpi import (
-    # from .epi_models.TalusSEIR import (
+# from .epi_models.HarvardEpi import (
+from .epi_models.TalusSEIR import (
     seir,
     dataframe_ify,
     generate_epi_params,
-    # harvard_model_params,
-    # r0_24_params,
     generate_r0,
     brute_force_r0,
+    L,
 )
 
-# from .epi_models.SIR import (
-#    seir,
-#    dataframe_ify,
-#    generate_epi_params,
-#    generate_r0,
-#    brute_force_r0,
-# )
-
+_logger = logging.getLogger(__name__)
 
 class CovidTimeseriesModelSIR:
-    # Initializer / Instance Attributes
-    def __init__(self):
-        logging.basicConfig(level=logging.ERROR)
 
     def initialize_parameters(self, model_parameters):
         """Perform all of the necessary setup prior to the model's execution"""
@@ -47,8 +36,8 @@ class CovidTimeseriesModelSIR:
             ]
         else:
             model_parameters["actual_end_date"] = actual_values.iloc[
-                -1, actual_values.columns.get_loc("date").to_pydatetime().date()
-            ]
+                -1, actual_values.columns.get_loc("date")].to_pydatetime().date()
+
 
         # TODO: add check for earlier initial date parameter and adjust so that
         # we can start the run earlier than the last data point
@@ -116,25 +105,32 @@ class CovidTimeseriesModelSIR:
                         k: (intervention_params[k] if k in intervention_params else v)
                         for (k, v) in seir_params.items()
                     }
+
                     new_r0 = generate_r0(
                         new_seir_params, model_parameters["population"]
                     )
 
-                print(date)
-                print(json.dumps(new_seir_params))
-                print(new_r0)
+                _logger.info(f"Intervention date: {date}")
+                _logger.info(f"Intervention R-effective: {new_r0}")
+                _logger.info(f"Intervention params: {json.dumps(new_seir_params)}")
 
                 pop_dict = {
                     "total": model_parameters["population"],
-                    "exposed": combined_df.at[date, "exposed"],
-                    "infected": combined_df.at[date, "infected"],
+                    "exposed": combined_df.loc[date, "exposed"],
+                    "infected": combined_df.loc[date, "infected"],
                     "recovered": combined_df.loc[date, "recovered"],
                     "deaths": combined_df.loc[date, "dead"],
                 }
 
-                if model_parameters["model"] == "seir":
-                    # this is a dumb way to do this, but it might work
+                if model_parameters["model"] == "asymp":
+                    pop_dict["asymp"] = combined_df.loc[date, "asymp"]
 
+                    _logger.debug(f"check beta for right number of elements: {new_seir_params['beta']}")
+                    new_seir_params["beta"] = L(list(new_seir_params["beta"]))
+                    new_seir_params["beta"].A = new_seir_params["beta"][4]
+
+                if model_parameters["model"] in ["seir", "asymp"]:
+                    # this is a dumb way to do this, but it might work
                     combined_df.loc[:, "infected_tmp"] = (
                         combined_df.loc[:, "infected_a"]
                         + combined_df.loc[:, "infected_b"]
@@ -149,6 +145,10 @@ class CovidTimeseriesModelSIR:
                     pop_dict["infected_b"] = combined_df.loc[date, "infected_b"]
                     pop_dict["infected_c"] = combined_df.loc[date, "infected_c"]
 
+                print(pop_dict['exposed'])
+                print(f"Populations: {json.dumps(pop_dict)}")
+                _logger.info(f"Populations: {json.dumps(pop_dict)}")
+
                 (data, steps, ret) = seir(pop_dict, model_parameters, **new_seir_params)
 
                 new_df = dataframe_ify(data, date, end_date, steps,)
@@ -157,10 +157,8 @@ class CovidTimeseriesModelSIR:
 
                 combined_df = early_combo_df.append(new_df, sort=True)
 
-                if model_parameters["interventions"] == "seir":
+                if model_parameters["model"] in ["seir", "asymp"]:
                     # this is a dumb way to do this, but it might work
-                    # this is a dumb way to do this, but it might work
-
                     combined_df.loc[:, "infected_tmp"] = (
                         combined_df.loc[:, "infected_a"]
                         + combined_df.loc[:, "infected_b"]
@@ -215,41 +213,49 @@ class CovidTimeseriesModelSIR:
                 model_parameters["exposed_infected_ratio"] * pop_dict["infected"]
             )
 
-        if model_parameters["use_harvard_params"]:
-            init_params = harvard_model_params(model_parameters["population"])
-        elif model_parameters["fix_r0"]:
-            init_params = r0_24_params(model_parameters["population"])
-        else:
-            init_params = generate_epi_params(model_parameters)
+        init_params = generate_epi_params(model_parameters)
+        init_params["beta"].append(init_params["beta"][1])
 
-            if model_parameters["interventions"] is not None:
-                intervention_params = self.get_latest_past_intervention(
-                    model_parameters["interventions"], init_date
-                )
+        if model_parameters["interventions"] is not None:
+            intervention_params = self.get_latest_past_intervention(
+                model_parameters["interventions"], init_date
+            )
 
-                # keep these in case we need to go back due to a final
-                # "return to normal" intervention
-                model_seir_init = init_params.copy()
+            # keep these in case we need to go back due to a final
+            # "return to normal" intervention
+            model_seir_init = init_params.copy()
 
-                if intervention_params is not None:
-                    if isinstance(intervention_params, numbers.Number):
-                        init_params = brute_force_r0(
-                            init_params,
-                            intervention_params,
-                            generate_r0(init_params, model_parameters["population"]),
-                            model_parameters["population"],
+            if intervention_params is not None:
+                if isinstance(intervention_params, numbers.Number):
+                    init_params = brute_force_r0(
+                        init_params,
+                        intervention_params,
+                        generate_r0(init_params, model_parameters["population"]),
+                        model_parameters["population"],
+                    )
+                else:
+                    init_params = {
+                        k: (
+                            intervention_params[k]
+                            if k in intervention_params
+                            else v
                         )
-                    else:
-                        init_params = {
-                            k: (
-                                intervention_params[k]
-                                if k in intervention_params
-                                else v
-                            )
-                            for (k, v) in init_params.items()
-                        }
+                        for (k, v) in init_params.items()
+                    }
 
         r0 = generate_r0(init_params, model_parameters["population"])
+
+        # sometimes the beta is one of these L things and so this breaks
+        # but sometimes it isn't? I think?
+        try:
+            init_params["beta"] = L(list(init_params["beta"]))
+            init_params["beta"].A = init_params["beta"][4]
+        except AttributeError:
+            pass
+
+
+        _logger.info(f"Initial R0: {r0}")
+        _logger.info(f"Initial params: {json.dumps(init_params)}")
 
         (data, steps, ret) = seir(pop_dict, model_parameters, **init_params)
 
@@ -336,8 +342,6 @@ class CovidTimeseriesModelSIR:
 
             combined_df.loc[:, "infected"].fillna(combined_df["infected_tmp"])
 
-            print(combined_df.iloc[51:].head())
-
             combined_df.drop("infected_tmp", axis=1, inplace=True)
 
         non_susceptible_cols = all_cols.copy()
@@ -360,8 +364,6 @@ class CovidTimeseriesModelSIR:
         combined_df["doubling_time"] = math.log(2) / combined_df["pct_change"]
 
         combined_df["beds"] = model_parameters["beds"]
-
-        print(model_parameters["last_date"])
 
         combined_df = combined_df.loc[
             (combined_df["date"] <= pd.Timestamp(model_parameters["last_date"])), :
