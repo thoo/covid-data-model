@@ -12,6 +12,7 @@ from .epi_models.HarvardEpi import (
     seir,
     dataframe_ify,
     generate_epi_params,
+    generate_epi_params_from_mr,
     # harvard_model_params,
     # r0_24_params,
     generate_r0,

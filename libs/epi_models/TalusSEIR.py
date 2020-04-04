@@ -342,6 +342,62 @@ def generate_epi_params(model_parameters):
     return seir_params
 
 
+# for now just implement Harvard model, in the future use this to change
+# key params due to interventions
+def generate_epi_params_from_mr(model_run):
+    N = model_run.population
+
+    fraction_critical = (
+        (1 - model_run.percent_asymp)
+        * model_run.hospitalization_rate
+        * model_run.hospitalized_cases_requiring_icu_care
+    )
+
+    alpha = 1 / model_run.presymptomatic_period
+
+    beta = L(
+        0,
+        model_run.beta / N,
+        model_run.beta_hospitalized / N,
+        model_run.beta_icu / N,
+        # TODO move beta.A to model params
+        A=model_run.beta / N,
+        # A = 0,
+    )
+
+    # have to calculate these in order and then put them into arrays
+    gamma_0 = 0
+    gamma_1 = (1 / model_run.duration_mild_infections) * (
+        1 - model_run.hospitalization_rate
+    )
+
+    rho_0 = 0
+    rho_1 = (1 / model_run.duration_mild_infections) - gamma_1
+    rho_2 = (1 / model_run.hospital_time_recovery) * (
+        fraction_critical / model_run.hospitalization_rate
+    )
+
+    gamma_2 = (1 / model_run.hospital_time_recovery) - rho_2
+
+    mu = (1 / model_run.icu_time_death) * (
+        model_run.case_fatality_rate / fraction_critical
+    )
+    gamma_3 = (1 / model_run.icu_time_death) - mu
+
+    seir_params = {
+        "beta": beta,
+        "alpha": alpha,
+        # TODO move gamma_a to model params
+        "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A=gamma_1),
+        # "gamma": L(gamma_0, gamma_1, gamma_2, gamma_3, A = 0),
+        "rho": [rho_0, rho_1, rho_2],
+        "mu": mu,
+        "f": model_run.percent_asymp,
+    }
+
+    return seir_params
+
+
 def convert_ratio_to_frac(x, numerator="second_term"):
     """Given a ratio x where x = a / b, returns the corresponding fraction
     assuming that b is the numerator by default.
